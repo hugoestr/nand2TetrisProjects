@@ -1,0 +1,118 @@
+require './parser'
+
+describe Parser do
+  before :each do
+    @p = Parser.new
+    @p.load_s "// Adds 1 + ... + 100\n@i\nM=1 // i=1\n@sum\nM=0 // sum=0"
+  end  
+
+  context 'load and advance' do 
+    it 'should load text' do
+      expect(@p.ready?).to eq true
+    end
+
+    it 'should return false when no commands left' do
+      @p = Parser.new
+      expect(@p.has_more_commands?).to eq false
+    end
+
+    it 'should return true when there are more commands' do
+      expect(@p.has_more_commands?).to eq true
+    end
+
+    it 'should not advance to next line when there are no commands' do
+      @p = Parser.new
+      @p.advance
+      expect(@p.current).to eq 0
+    end
+
+    it 'should advance to next line when ther are more commands' do
+      @p.advance
+      expect(@p.current).to eq 1
+    end
+  end
+
+  context 'command type processing' do
+    it 'should identify A_COMMAND' do
+      result = @p.command_type '@i' 
+      expect(result).to eq :a_command
+    end
+   
+    it 'should identify L_COMMAND' do
+      result = @p.command_type '(LOOP)' 
+      expect(result).to eq :l_command
+    end
+
+    it 'should handle spaces' do
+      result = @p.command_type '(LOOP)   // bogus' 
+      expect(result).to eq :l_command
+    end
+
+    it 'should identify C_COMMAND' do
+      result = @p.command_type 'M=0 // sum=0' 
+      expect(result).to eq :c_command
+    end
+  end
+
+  context 'parsing commands' do
+
+    context 'getting symbol' do
+      it 'should have all nil stuff when line is a comment' do
+        @p.decode '// (LOOP)  bogus'  
+        expect(@p.symbol).to be_nil
+      end
+
+      it 'gets symbol from loop label' do
+        @p.decode '(LOOP) //  bogus'  
+        expect(@p.symbol).to eq 'LOOP'
+      end
+
+      it 'gets symbol from load command' do
+        @p.decode '@LOOP //  bogus'  
+        expect(@p.symbol).to eq 'LOOP'
+      end
+    end
+
+
+    context 'getting dest' do
+      it 'returns nil when there is no destination' do
+        @p.decode 'D;JEQ // If D=0 goto 100'  
+        expect(@p.dest).to be_nil
+      end
+    
+      it 'returns M when M is destination' do
+        @p.decode 'D=M // D=Memory[3]'  
+        expect(@p.dest).to eq 'D'
+      end
+
+
+       it 'returns M when M is destination' do
+        @p.decode 'AD=M // D=Memory[3]'  
+        expect(@p.dest).to eq 'AD'
+      end
+    end
+
+
+    context 'jump' do
+      it 'should return the jump mnemonic' do
+        @p.decode 'D;JGT // if (i-100)>0 goto END'  
+        expect(@p.jump).to eq 'JGT'
+      end
+    end # end  jump
+
+    context 'comp' do
+      it 'should return the comp mnemonic' do
+        @p.decode 'D=D|M // if (i-100)>0 goto END'  
+        expect(@p.comp).to eq 'D|M'
+      end
+
+       it 'should return the  comp mnemonic in jump' do
+        @p.decode 'D;JGT // if (i-100)>0 goto END'  
+        expect(@p.comp).to eq 'D'
+       end
+    end # end comp
+  end
+end
+
+
+
